@@ -253,7 +253,7 @@ export function LeadForm({ mode, leadId, trackingId, initialValues, niches: init
         </Field>
       </Section>
 
-      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <div className="sticky bottom-above-nav -mx-4 flex gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <Link href={mode === "edit" ? `/leads/${trackingId}` : "/"} className="btn-secondary flex-1">Cancel</Link>
         <button type="submit" className="btn-primary flex-[2]" disabled={pending}>
           {pending && !mergingId && <Spinner />}

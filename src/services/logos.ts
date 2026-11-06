@@ -1,6 +1,8 @@
 import { sniffImage } from "@/lib/images";
 import { safeFetch } from "@/lib/net/safeFetch";
 import type { LeadUpdate, LogoStatus } from "@/lib/database.types";
+import { logActivity, type ActorOptions } from "./activities";
+import { recalculateScore } from "./pipeline";
 import { dbError, type DB, type Lead, type ServiceResult } from "./types";
 
 export const LOGO_BUCKET = "logos";
@@ -19,7 +21,7 @@ type Candidate = { url: string; source: "apple_touch_icon" | "og_image" | "favic
  * Instagram is never scraped. If nothing works the lead keeps its initials
  * avatar (logo_status = not_found), and an existing logo is never removed.
  */
-export async function findLogo(db: DB, leadId: string): Promise<ServiceResult<LogoResult>> {
+export async function findLogo(db: DB, leadId: string, options: ActorOptions = {}): Promise<ServiceResult<LogoResult>> {
   const { data: lead, error } = await db.from("leads").select("*").eq("id", leadId).maybeSingle();
   if (error) return dbError(error);
   if (!lead) return { ok: false, code: "not_found", message: "Lead not found." };
@@ -31,7 +33,7 @@ export async function findLogo(db: DB, leadId: string): Promise<ServiceResult<Lo
       tried.push(candidate.url);
       const image = await downloadImage(candidate.url);
       if (!image) continue;
-      const saved = await storeLogo(db, lead, image, candidate.source);
+      const saved = await storeLogo(db, lead, image, candidate.source, options.actor ?? "system");
       if (!saved.ok) return saved;
       return { ok: true, data: { status: "found", logo_url: saved.data, source: candidate.source, tried } };
     }
@@ -55,7 +57,7 @@ export async function findLogos(db: DB, leadIds: string[], concurrency = 4): Pro
       while (next < leadIds.length) {
         const id = leadIds[next++];
         try {
-          const r = await findLogo(db, id);
+          const r = await findLogo(db, id, { actor: "system" });
           if (!r.ok) console.error(`[logos] ${id}: ${r.message}`);
         } catch (e) {
           console.error(`[logos] ${id}:`, e);
@@ -70,6 +72,7 @@ export async function uploadLeadLogo(
   db: DB,
   leadId: string,
   bytes: Uint8Array,
+  options: ActorOptions = {},
 ): Promise<ServiceResult<string>> {
   if (bytes.byteLength > 5_000_000) {
     return { ok: false, code: "validation", message: "Image is too large (max 5 MB).", fieldErrors: {} };
@@ -81,7 +84,7 @@ export async function uploadLeadLogo(
   const { data: lead, error } = await db.from("leads").select("*").eq("id", leadId).maybeSingle();
   if (error) return dbError(error);
   if (!lead) return { ok: false, code: "not_found", message: "Lead not found." };
-  return storeLogo(db, lead, { bytes, mime: info.mime, ext: info.ext }, "upload");
+  return storeLogo(db, lead, { bytes, mime: info.mime, ext: info.ext }, "upload", options.actor ?? "owner");
 }
 
 async function* candidates(website: string, host: string, tried: string[]): AsyncGenerator<Candidate> {
@@ -157,7 +160,7 @@ async function downloadImage(url: string): Promise<Image | null> {
   }
 }
 
-async function storeLogo(db: DB, lead: Lead, image: Image, source: string): Promise<ServiceResult<string>> {
+async function storeLogo(db: DB, lead: Lead, image: Image, source: string, actor: string): Promise<ServiceResult<string>> {
   const path = `${lead.id}/${source}-${Date.now()}.${image.ext}`;
   const up = await db.storage.from(LOGO_BUCKET).upload(path, image.bytes, {
     contentType: image.mime,
@@ -174,5 +177,7 @@ async function storeLogo(db: DB, lead: Lead, image: Image, source: string): Prom
   };
   const { error } = await db.from("leads").update(patch).eq("id", lead.id);
   if (error) return dbError(error);
+  await logActivity(db, lead.id, "logo_found", { source, url }, actor);
+  await recalculateScore(db, lead.id);
   return { ok: true, data: url };
 }

@@ -25,7 +25,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ track
     throw new Error(lead.message);
   }
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center gap-2">
         <Link href={`/leads/${lead.data.tracking_id}`} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Back">←</Link>
         <div>

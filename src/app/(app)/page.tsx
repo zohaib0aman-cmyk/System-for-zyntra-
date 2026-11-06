@@ -1,56 +1,54 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { activeFilterCount, filtersToParams, parseFilters } from "@/lib/filters";
 import { createClient } from "@/lib/supabase/server";
-import { searchLeads } from "@/services";
-import { LeadCard } from "@/components/LeadCard";
+import { getFilterOptions, listLeads, listTags } from "@/services";
 import { SearchBar } from "@/components/SearchBar";
-import { LeadListSkeleton } from "@/components/Skeletons";
+import { FilterPanel, LeadsToolbar } from "@/components/pipeline/FilterPanel";
+import { LeadList } from "@/components/pipeline/LeadList";
+import { TodayFollowups } from "@/components/pipeline/TodayFollowups";
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q = "" } = await searchParams;
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const { filters, sort } = parseFilters(await searchParams);
+  const query = filtersToParams(filters, sort).toString();
+  const db = await createClient();
+  const [page, options, tags] = await Promise.all([listLeads(db, filters, sort), getFilterOptions(db), listTags(db)]);
+  const showToday = !filters.q && activeFilterCount(filters) === 0;
+  const opts = options.ok ? options.data : { total: 0, niches: [], countries: [], states: [], cities: [], tags: [] };
+
   return (
-    <div className="space-y-4">
-      <div className="sticky top-14 z-10 -mx-4 bg-slate-50/95 px-4 pb-2 pt-1 backdrop-blur">
-        <SearchBar initialQuery={q} />
+    <div className="lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-6">
+      <aside className="hidden lg:block">
+        <div className="card sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto p-4">
+          <FilterPanel options={opts} filters={filters} sort={sort} />
+        </div>
+      </aside>
+
+      <div className="min-w-0 space-y-4">
+        {showToday && (
+          <Suspense fallback={null}>
+            <TodayFollowups />
+          </Suspense>
+        )}
+
+        <div className="sticky top-14 z-10 -mx-4 space-y-2 bg-slate-50/95 px-4 pb-2 pt-1 backdrop-blur">
+          <SearchBar initialQuery={filters.q} />
+          <LeadsToolbar options={opts} filters={filters} sort={sort} />
+        </div>
+
+        {page.ok ? (
+          <LeadList key={query} initial={page.data} query={query} allTags={tags.ok ? tags.data : []} />
+        ) : (
+          <p role="alert" className="card border-red-200 bg-red-50 p-4 text-sm text-red-700">Could not load leads: {page.message}</p>
+        )}
       </div>
-      <Suspense key={q} fallback={<LeadListSkeleton />}>
-        <LeadResults query={q} />
-      </Suspense>
+
       <Link
         href="/leads/new"
-        className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-4 font-semibold text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 active:scale-95"
+        className="fixed bottom-above-nav right-4 z-30 mb-4 inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-4 font-semibold text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 active:scale-95 md:right-6"
       >
         <span className="text-xl leading-none">+</span> Add lead
       </Link>
     </div>
-  );
-}
-
-async function LeadResults({ query }: { query: string }) {
-  const db = await createClient();
-  const res = await searchLeads(db, query);
-  if (!res.ok) {
-    return <p role="alert" className="card border-red-200 bg-red-50 p-4 text-sm text-red-700">Could not load leads: {res.message}</p>;
-  }
-  const leads = res.data;
-  if (leads.length === 0) {
-    return (
-      <div className="card p-8 text-center">
-        <p className="font-medium">{query ? `No leads match “${query}”.` : "No leads yet."}</p>
-        <Link href="/leads/new" className="btn-primary mt-4">Add a lead</Link>
-      </div>
-    );
-  }
-  return (
-    <section>
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-        {query ? `${leads.length} result${leads.length === 1 ? "" : "s"}` : `Latest ${leads.length} lead${leads.length === 1 ? "" : "s"}`}
-      </p>
-      <ul className="grid gap-2.5 sm:grid-cols-2">
-        {leads.map((lead) => (
-          <li key={lead.id}><LeadCard lead={lead} /></li>
-        ))}
-      </ul>
-    </section>
   );
 }

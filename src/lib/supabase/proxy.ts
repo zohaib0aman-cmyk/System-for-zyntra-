@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/database.types";
 import { supabaseEnv } from "./env";
 
-const PUBLIC_PATHS = ["/login"];
+// /api/cron checks its own secret (no login session).
+const PUBLIC_PATHS = ["/login", "/api/cron"];
 
 /** Refreshes the auth session cookie and redirects anonymous users to /login. */
 export async function updateSession(request: NextRequest) {

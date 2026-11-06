@@ -238,8 +238,91 @@ To test from your computer's dev server instead: `npm run dev -- -H 0.0.0.0`, th
 
 `supabase/config.toml` is included. With Docker running, `npx supabase start` applies both migrations and `seed.sql` locally. Create a user in the local dashboard or with the admin API, insert it into `app_owners`, and point `.env.local` at the printed `API_URL` and publishable key. Set `AI_PROVIDER=basic` to test imports without an API key (clean tables only).
 
+---
+
+# Phase 3 — sales pipeline
+
+The lead list becomes a working pipeline: every lead has a **status**, a **timeline**, **follow-up reminders**, a **score** (Hot / Warm / Cold), **tags**, and a full **filter** panel. Installable on the phone (PWA) with push notifications for due follow-ups.
+
+## What's new
+
+1. **Status stages** — New → Contacted → Interested → Deal Closed → Rejected (a Postgres enum, so more can be added later). Change it in one tap on the profile, or from a card's **⋯ / long-press** menu. Every change is logged.
+2. **Timeline** — `lead_activities` records created / updated / status_changed / note_added / followup_set / followup_done / imported / logo_found / merged / tag / priority events, each with who did it (**owner / claude / gpt / system / …**). Shown newest-first on the profile, with an **Add note** box. Phase 2 imports and merges are logged too.
+3. **Follow-ups** — `followups` table. On the profile: **Set follow-up** (Tomorrow / 3 days / 1 week / custom). The home screen shows **"Aaj ke follow-ups"** (today + overdue, overdue in red) with **Done** and **Snooze**. The nav shows a badge of pending follow-ups. A **browser push notification** fires when one is due (works on the phone once the app is on the home screen).
+4. **Lead score (0–100)** — recalculated on every change from **one config file, `src/config/scoring.ts`**, so you can tune it: profile completeness + status + recent contact + a manual **★ priority** boost. Labels **Hot ≥ 70 / Warm 40–69 / Cold < 40**. The profile shows a breakdown ("Why this score?").
+5. **Tags** — `tags` + `lead_tags`. Add/remove on the profile with autocomplete (new tags created on the fly), or **select several leads in the list and tag them all at once**.
+6. **Filters** — sidebar on desktop, bottom sheet on phone. Niche (with per-niche counts, at the top), status, score, tags, country, state, city, source, date-added range, follow-up due, priority. They **combine** (tap *Clothing Brand* + *Gujarat* → all Gujarat clothing brands), work with the search bar, show as **removable chips**, and are **saved in the URL** so a view can be bookmarked. Sort by newest / score / next follow-up / name. The list uses **infinite scroll**.
+
+Everything is indexed for `status`, `score`, `niche`, `state`, `city`, `source`, `due_at` and the search columns, so filters stay fast with 50,000+ leads.
+
+### Code added
+```
+supabase/migrations/20261108000000_phase3_pipeline.sql   status enum, lead_activities, followups, tags, push_subscriptions,
+                                                          score columns, list_leads() + lead_filter_options(), indexes, RLS
+supabase/sample_pipeline.sql     sample statuses / tags / scores / follow-ups
+supabase/cron_followups.sql      optional pg_cron job (every 15 min)
+src/config/scoring.ts            the score rules — tune these
+src/lib/filters.ts               URL ⇄ filter state
+src/lib/time.ts                  time-zone aware "today" (Asia/Kolkata)
+src/services/pipeline.ts         setStatus, addNote, setPriority, recalculateScore(s)
+src/services/followups.ts        setFollowup, completeFollowup, snoozeFollowup, getDueFollowups
+src/services/tags.ts             addTag, removeTag, getOrCreateTag
+src/services/activities.ts       logActivity, getTimeline
+src/services/leadList.ts         listLeads(filters, sort, page), getFilterOptions
+src/services/push.ts             web-push: subscribe, sendPushToAll, notifyDueFollowups
+src/app/api/cron/followups/      the 15-minute job (checks CRON_SECRET)
+src/app/(app)/followups/         Follow-ups tab
+src/app/(app)/settings/          Settings: notifications + recalculate scores
+src/app/manifest.ts, public/sw.js, public/icons/   PWA + push service worker
+src/components/pipeline/, src/components/nav/, src/components/settings/   UI
+```
+
+**For the API / MCP phase** — every write function takes an `actor`, so an AI can act and the timeline shows who did what:
+```ts
+await setStatus(db, leadId, "Interested", { actor: "claude" });
+await setFollowup(db, leadId, { dueAt, note }, { actor: "gpt" });
+await addTag(db, leadIds, "Diwali offer", { actor: "owner" });
+const { rows, total } = (await listLeads(db, { niches: ["Clothing Brand"], states: ["GJ"] }, "score")).data;
+const timeline = (await getTimeline(db, leadId)).data;
+```
+
+## Phase 3 setup
+
+1. **Run the migration.** Supabase → SQL Editor → paste `supabase/migrations/20261108000000_phase3_pipeline.sql` → Run. It converts `status` to an enum (old values map over: Follow-up→Contacted, Converted→Deal Closed, Not Interested→Rejected), adds the new tables and indexes, and backfills a "created" timeline entry for existing leads.
+2. **Push notification keys.** Generate a VAPID key pair once:
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+   Add to `.env.local` and to Vercel's environment variables:
+
+   | Variable | Value |
+   |---|---|
+   | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | the public key (exposed to the browser) |
+   | `VAPID_PRIVATE_KEY` | the private key — **server-only** |
+   | `VAPID_SUBJECT` | `mailto:you@example.com` |
+   | `CRON_SECRET` | any long random string |
+   | `SUPABASE_SECRET_KEY` | Supabase → Settings → API → service-role/secret key — **server-only**, used by the cron job |
+
+   Redeploy after adding them.
+3. **Schedule the 15-minute job** (sends due-follow-up notifications and refreshes scores). Pick one:
+   - **Vercel Cron** — `vercel.json` already defines `*/15 * * * *` → `/api/cron/followups`. Vercel automatically sends `Authorization: Bearer $CRON_SECRET`, so just set `CRON_SECRET`. (Hobby plan runs cron up to twice a day; for true 15-minute checks use Pro, or:)
+   - **Supabase pg_cron** — edit `supabase/cron_followups.sql` (put in your app URL and `CRON_SECRET`) and run it in the SQL Editor. Works on any plan.
+4. **Time zone** (optional): set `NEXT_PUBLIC_APP_TIMEZONE` (default `Asia/Kolkata`) — used for "today" and follow-up dates.
+
+## Sample data
+Run `supabase/sample_pipeline.sql` (after `seed.sql`) to give the 5 sample leads different statuses, tags, scores and follow-ups — one overdue, one due today, a Hot priority lead, a closed deal, and a Rejected (score 0) lead.
+
+## Test on your phone
+
+1. Deploy with the Phase 3 env vars and run the migration (+ sample data).
+2. **Install the app:** open your Vercel URL in the phone browser → **Share → Add to Home Screen**. Open it from the home-screen icon (it runs full-screen, like an app).
+3. **Pipeline:** open a lead, tap a **status** chip (one tap), tap **★ Priority** and watch the score jump, add a **note** and a **tag**, and **Set follow-up → Tomorrow**.
+4. **Filters:** tap **Filter**, choose **Clothing Brand**, then add **Gujarat** — the list narrows to Gujarat clothing brands, and the URL updates (bookmark it). Remove a chip or **Clear all**.
+5. **Bulk:** tap **Select**, pick a few leads, **# Add tag**.
+6. **Follow-ups:** the home screen shows **Aaj ke follow-ups**; tap **Done** or **Snooze**. The **Follow-ups** tab groups Overdue / Later today / Upcoming.
+7. **Notifications:** go to **Settings → Enable notifications** (allow when asked), then **Send test notification** — it should appear on your phone. Real reminders arrive within 15 minutes of a follow-up's time (via the cron job). On iPhone this only works from the home-screen app, on iOS 16.4+.
+
 ## Ready for later phases
-- **AI connection (Claude, GPT):** call `addLead(db, data)` with `source: "claude" | "gpt"`, or `importLeadsFromPdf(db, …)` for PDFs. The duplicate check and ID generation come for free.
-- **REST API / MCP server:** wrap the functions in `src/services`. For a server-to-server key, create a client with the secret key (this bypasses RLS) inside the API route only.
-- **Filters / dashboard:** `niche`, `state`, `status` and `created_at` are already indexed.
-- **Logos:** `logo_url` is already shown everywhere; a later job just fills it in.
+- **AI connection (Claude, GPT):** call `addLead` / `setStatus` / `setFollowup` / `addTag` / `importLeadsFromPdf` with `{ actor: "claude" | "gpt" }`. The timeline records which AI did it.
+- **REST API / MCP server:** wrap the functions in `src/services` (all take a Supabase client first). For a server-to-server key, use the secret key inside the API route only.
+- **Dashboard:** `list_leads` and `lead_filter_options` already return counts and facets; `score`, `status`, `niche`, `state`, `due_at` are indexed.

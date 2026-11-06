@@ -5,7 +5,9 @@ import { normalizeExtracted } from "@/lib/import/normalizeExtracted";
 import { extractPdfText, PdfError } from "@/lib/pdf/extractText";
 import { createLeadSchema, toFieldErrors, type LeadField, type LeadFormValues } from "@/lib/validation";
 import { findDuplicateLeads, mergeLeadDetails } from "./leads";
+import { logActivity, type ActorOptions } from "./activities";
 import { addNiche, listNiches } from "./niches";
+import { recalculateScores } from "./pipeline";
 import { dbError, type DB, type ServiceResult } from "./types";
 
 export const IMPORT_BUCKET = "imports";
@@ -314,7 +316,12 @@ export async function saveImportItems(db: DB, importId: string, items: ImportIte
  * import_id set); duplicates are merged into the existing lead; rows that
  * cannot be saved are skipped with a reason. Every row ends up in `results`.
  */
-export async function commitImport(db: DB, importId: string, itemsInput?: ImportItem[]): Promise<ServiceResult<ImportSummary>> {
+export async function commitImport(
+  db: DB,
+  importId: string,
+  itemsInput?: ImportItem[],
+  options: ActorOptions = {},
+): Promise<ServiceResult<ImportSummary>> {
   // Claim the import so a double tap cannot save twice.
   const claim = await db
     .from("imports")
@@ -376,7 +383,7 @@ export async function commitImport(db: DB, importId: string, itemsInput?: Import
         if (!dup.ok) throw new Error(dup.message);
         if (dup.data.length > 0) {
           const target = dup.data[0];
-          const merged = await mergeLeadDetails(db, target, lead, label);
+          const merged = await mergeLeadDetails(db, target, lead, label, { actor: options.actor, importId });
           if (!merged.ok) throw new Error(merged.message);
           results.push({
             key: item.key,
@@ -397,6 +404,13 @@ export async function commitImport(db: DB, importId: string, itemsInput?: Import
           .single();
         if (ins.error) throw new Error(ins.error.message);
         createdByKey.set(ins.data.id, item.key);
+        await logActivity(
+          db,
+          ins.data.id,
+          "imported",
+          { import_id: importId, file_name: row.file_name, tracking_id: ins.data.tracking_id },
+          options.actor,
+        );
         results.push({
           key: item.key,
           brand_name: brand,
@@ -431,6 +445,9 @@ export async function commitImport(db: DB, importId: string, itemsInput?: Import
       .eq("id", importId);
   }
 
+  const savedIds = results.filter((r) => r.lead_id && (r.outcome === "added" || r.outcome === "merged")).map((r) => r.lead_id!);
+  await recalculateScores(db, { leadIds: [...new Set(savedIds)] });
+
   const count = (o: ImportOutcome) => results.filter((r) => r.outcome === o).length;
   return {
     ok: true,
@@ -453,7 +470,7 @@ export type ImportPdfInput = {
   fileName: string;
 };
 
-export type ImportPdfOptions = ProcessOptions & {
+export type ImportPdfOptions = ProcessOptions & ActorOptions & {
   /** Save straight away (no review). Default false: leaves the import in "review". */
   autoSave?: boolean;
 };
@@ -492,7 +509,7 @@ export async function importLeadsFromPdf(
   if (!processed.ok) return processed;
   if (!options.autoSave) return { ok: true, data: { import: processed.data, summary: null } };
 
-  const summary = await commitImport(db, imp.id);
+  const summary = await commitImport(db, imp.id, undefined, { actor: options.actor });
   if (!summary.ok) return summary;
   const final = await getImport(db, imp.id);
   if (!final.ok) return final;

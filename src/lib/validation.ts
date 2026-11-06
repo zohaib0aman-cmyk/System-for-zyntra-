@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_COUNTRY, INDIAN_STATE_CODES, LEAD_SOURCES } from "./constants";
+import { DEFAULT_COUNTRY, INDIAN_STATE_CODES, LEAD_SOURCES, LEAD_STATUSES } from "./constants";
 import type { LeadInsert, LeadUpdate } from "./database.types";
 import { normalizeInstagram, normalizePhone, normalizeWebsite, type NormalizeResult } from "./normalize";
 
@@ -53,7 +53,7 @@ const fields = {
       error: "Invalid source.",
     })
     .optional(),
-  status: z.string().trim().min(1, "Status is required.").max(40).optional(),
+  status: z.enum(LEAD_STATUSES, { error: "Pick a valid status." }).optional(),
   notes: optText(5000, "Notes"),
 };
 

@@ -13,7 +13,7 @@ export default async function NewLeadPage() {
   const db = await createClient();
   const niches = await listNiches(db);
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center gap-2">
         <Link href="/" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Back">←</Link>
         <h1 className="text-xl font-bold">Add lead</h1>

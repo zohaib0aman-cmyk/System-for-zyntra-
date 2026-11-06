@@ -1,12 +1,13 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Spinner } from "./Spinner";
 
 export function SearchBar({ initialQuery }: { initialQuery: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [value, setValue] = useState(initialQuery);
   const [pending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -14,12 +15,25 @@ export function SearchBar({ initialQuery }: { initialQuery: string }) {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // The query changed from outside (e.g. "Clear all" or browser back): show it.
+  useEffect(() => {
+    if (initialQuery !== lastPushed.current) {
+      lastPushed.current = initialQuery;
+      setValue(initialQuery);
+    }
+  }, [initialQuery]);
+
   function push(q: string) {
     const trimmed = q.trim();
     if (trimmed === lastPushed.current) return;
     lastPushed.current = trimmed;
+    // Keep the active filters and sort; only replace the search text.
+    const params = new URLSearchParams(searchParams.toString());
+    if (trimmed) params.set("q", trimmed);
+    else params.delete("q");
+    const qs = params.toString();
     startTransition(() => {
-      router.replace(trimmed ? `${pathname}?q=${encodeURIComponent(trimmed)}` : pathname, { scroll: false });
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });
   }
 

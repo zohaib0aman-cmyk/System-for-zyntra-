@@ -24,7 +24,7 @@ export default async function ImportPage({ params }: { params: Promise<{ id: str
   const imp = res.data;
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-start gap-2">
         <Link href="/imports" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Back">←</Link>
         <div className="min-w-0 flex-1">
