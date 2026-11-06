@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { logout } from "@/app/login/actions";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { RecalculateScores } from "@/components/settings/RecalculateScores";
@@ -10,6 +11,18 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Settings</h1>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <Link href="/settings/templates" className="card p-4 transition hover:border-brand-200 hover:shadow-md">
+          <p className="font-semibold">Message templates</p>
+          <p className="mt-0.5 text-xs text-slate-500">WhatsApp message presets with variables</p>
+        </Link>
+        <Link href="/settings/backups" className="card p-4 transition hover:border-brand-200 hover:shadow-md">
+          <p className="font-semibold">Backups &amp; restore</p>
+          <p className="mt-0.5 text-xs text-slate-500">Download or restore a full data backup</p>
+        </Link>
+      </div>
+
       <NotificationSettings vapidPublicKey={vapid} />
       <RecalculateScores />
       <section className="card p-4">

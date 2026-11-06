@@ -11,3 +11,8 @@ export * from "./followups";
 export * from "./tags";
 export * from "./imports";
 export * from "./logos";
+export * from "./dashboard";
+export * from "./templates";
+export * from "./exportColumns";
+export * from "./exportLeads";
+export * from "./backup";

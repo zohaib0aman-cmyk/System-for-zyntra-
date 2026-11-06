@@ -69,3 +69,16 @@ from (
   where tracking_id in ('ZYN-IN-GJ-000001','ZYN-IN-GJ-000002','ZYN-IN-MH-000001','ZYN-IN-RJ-000001','ZYN-IN-TN-000001')
 ) s
 where l.id = s.id;
+
+-- Backfill timeline "created" events for the sample leads (real leads get this
+-- automatically from addLead; the Phase 3 backfill runs before seed.sql).
+insert into public.lead_activities (lead_id, type, details, actor, created_at)
+select l.id, 'created', jsonb_build_object('source', l.source, 'tracking_id', l.tracking_id), 'owner', l.created_at
+from public.leads l
+where not exists (select 1 from public.lead_activities a where a.lead_id = l.id and a.type = 'created');
+
+-- A couple of status-change events so "Recent activity" looks alive
+insert into public.lead_activities (lead_id, type, details, actor, created_at)
+select id, 'status_changed', jsonb_build_object('old','New','new',status::text), 'owner', now() - interval '1 day'
+from public.leads l where l.tracking_id in ('ZYN-IN-GJ-000001','ZYN-IN-RJ-000001')
+and not exists (select 1 from public.lead_activities a where a.lead_id = l.id and a.type='status_changed');

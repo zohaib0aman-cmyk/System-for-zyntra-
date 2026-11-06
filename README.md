@@ -322,7 +322,70 @@ Run `supabase/sample_pipeline.sql` (after `seed.sql`) to give the 5 sample leads
 6. **Follow-ups:** the home screen shows **Aaj ke follow-ups**; tap **Done** or **Snooze**. The **Follow-ups** tab groups Overdue / Later today / Upcoming.
 7. **Notifications:** go to **Settings → Enable notifications** (allow when asked), then **Send test notification** — it should appear on your phone. Real reminders arrive within 15 minutes of a follow-up's time (via the cron job). On iPhone this only works from the home-screen app, on iOS 16.4+.
 
+---
+
+# Phase 4 — dashboard, WhatsApp, export, backup
+
+The home screen is now a **dashboard**; the lead list moved to **/leads**. You can message any lead on WhatsApp in one tap, export any filtered view, and the app keeps its own daily backups.
+
+## What's new
+
+1. **Dashboard (home screen).** Headline cards (total, new this week/month, hot, due today, deals closed, conversion = Deal Closed ÷ contacted) and **Recharts** charts: pipeline funnel, leads by state, by niche, by source, and added-over-time. A **date range** selector (7/30/90 days, all time, custom) drives the charts. **Tap any bar or card** to open the lead list already filtered (e.g. tap *Gujarat* → `/leads?state=GJ`). Below: **"Aaj ke follow-ups"** and **Recent activity** (last 10 events across all leads). All numbers come from one SQL function (`dashboard_stats`), so it stays fast with 50,000+ leads.
+2. **One-click WhatsApp.** A WhatsApp button on every card and the profile. It opens a **template picker with a live preview**, then `https://wa.me/<number>?text=<message>` (the app on a phone, WhatsApp Web on desktop). Templates live in a `message_templates` table and support `{brand_name} {owner_name} {city} {state} {niche} {tracking_id}`; manage them in **Settings → Message templates** (3 starters included). The open is logged on the timeline, and if the lead is still **New** you're asked **"Mark as Contacted?"**. No number → the button is disabled with a hint. WhatsApp number is used, falling back to phone.
+3. **Export.** The **Export** button on the list exports exactly the current filtered + sorted view, with a **column picker**:
+   - **Excel (.xlsx):** all chosen fields, **bold frozen header**, auto column widths, a filter + auto-filter, and an "Export info" sheet (date, count, applied filters).
+   - **PDF:** a clean paginated table with the Zyntra title, date, applied filters and total.
+   - **Download PDF** on a profile makes a one-page **ID-card** (logo, big tracking ID, details, score, tags, recent activity).
+   Every export is logged in an `exports` table.
+4. **Backup & restore.** **Settings → Backups** lists backups (date, size, lead count) with **Backup now** and per-backup **JSON / Excel** download. A backup is a single JSON file (plus an Excel copy) of every table — `leads, niches, tags, lead_tags, lead_activities, followups, message_templates, imports` — plus the list of logo/import storage paths, saved in a private **`backups`** bucket. The **last 30** are kept automatically. **Restore** uploads a file, shows a **preview** (new vs existing leads), and defaults to **merge** (nothing deleted); **Replace everything** needs an explicit tick. Restore preserves tracking IDs and re-syncs the ID counters so new leads never collide. The dashboard shows **"Last backup: …"**, in red if older than 2 days. A **daily automatic backup** runs via cron.
+
+All exports and backups check the logged-in owner **on the server** (RLS + an auth check in each route), not just in the UI.
+
+### Code added
+```
+supabase/migrations/20261109000000_phase4_dashboard_export_backup.sql
+    dashboard_stats() + recent_activity(), message_templates / exports / backups tables,
+    backups storage bucket, whatsapp_opened activity, restore-friendly tracking_id + resync_tracking_counters()
+src/services/dashboard.ts     getDashboardStats, getRecentActivity, resolveRange
+src/services/templates.ts     getWhatsAppLink, renderTemplate, logWhatsAppOpened, template CRUD
+src/services/exportLeads.ts   exportLeads (xlsx/pdf), exportLeadProfile   (+ exportColumns.ts)
+src/services/backup.ts        createBackup, listBackups, previewRestore, restoreBackup, pruneBackups
+src/app/api/export/{leads,profile}/   download routes (owner-only)
+src/app/api/cron/backup/      daily backup job (CRON_SECRET)
+src/app/(app)/page.tsx        the dashboard;  /leads  is now the list
+src/components/dashboard/, src/components/whatsapp/, src/components/export/, src/components/settings/{Template,Backup}Manager
+```
+
+**For the API / MCP phase** (all take a Supabase client, all record an actor):
+```ts
+const stats = (await getDashboardStats(db, "30d")).data;
+const { url } = (await getWhatsAppLink(db, leadId, templateId)).data;   // then logWhatsAppOpened(db, leadId, …)
+const file = (await exportLeads(db, { niches: ["Clothing Brand"] }, "xlsx", "score")).data;   // { filename, bytes }
+const profile = (await exportLeadProfile(db, leadId)).data;
+const backup = (await createBackup(db)).data;   // listBackups(db) · restoreBackup(db, json, "merge")
+```
+
+## Phase 4 setup
+
+1. **Run the migration:** Supabase → SQL Editor → `supabase/migrations/20261109000000_phase4_dashboard_export_backup.sql`. It adds the tables, the `backups` bucket, the dashboard functions, and makes restore keep tracking IDs. No new npm env beyond Phase 3.
+2. **Daily backup schedule** (uses the same `CRON_SECRET` and `SUPABASE_SECRET_KEY` from Phase 3):
+   - **Vercel Cron** — `vercel.json` already has `/api/cron/backup` daily at 02:30. Vercel sends the `Authorization: Bearer $CRON_SECRET` header automatically.
+   - **Supabase pg_cron** — `supabase/cron_followups.sql` now also schedules `zyntra-backup`; edit the URL + secret and run it.
+   The job skips if a backup was made in the last 20 hours, so calling it more often is safe. `?force=1` forces one.
+3. No new environment variables. (Exports/backup run server-side with the user's session; the cron backup uses `SUPABASE_SECRET_KEY`.)
+
+## Sample data
+`supabase/sample_pipeline.sql` (from Phase 3) already gives varied statuses, scores, tags and follow-ups, so the dashboard charts, conversion rate and activity feed are populated.
+
+## Test on your phone
+
+1. Deploy with the migration run. Open the app (add to home screen for the full-screen experience).
+2. **Dashboard:** change the date range; tap **Hot leads** or a **state bar** → the filtered list opens. Check **Last backup** top-right.
+3. **WhatsApp:** on any lead tap the green **WhatsApp** button → pick **First intro** → see the filled preview → **Open WhatsApp** (it opens the chat with the message ready). Come back and accept **Mark as Contacted?**.
+4. **Export:** on **/leads**, apply a filter (e.g. niche + state), tap **Export**, choose columns, download **Excel** and **PDF**. Open a profile and tap **Download PDF**.
+5. **Backup:** **Settings → Backups → Backup now**, then download the JSON. To test restore safely, delete a lead, then upload that JSON and **Merge** — the lead comes back. (Try **Replace everything** only on test data.)
+
 ## Ready for later phases
-- **AI connection (Claude, GPT):** call `addLead` / `setStatus` / `setFollowup` / `addTag` / `importLeadsFromPdf` with `{ actor: "claude" | "gpt" }`. The timeline records which AI did it.
+- **AI connection (Claude, GPT):** call `addLead` / `setStatus` / `setFollowup` / `addTag` / `importLeadsFromPdf` / `getWhatsAppLink` / `exportLeads` / `createBackup` with `{ actor: "claude" | "gpt" }`. The timeline records which AI did it.
 - **REST API / MCP server:** wrap the functions in `src/services` (all take a Supabase client first). For a server-to-server key, use the secret key inside the API route only.
-- **Dashboard:** `list_leads` and `lead_filter_options` already return counts and facets; `score`, `status`, `niche`, `state`, `due_at` are indexed.
+- **Dashboard:** `dashboard_stats`, `list_leads` and `lead_filter_options` return counts and facets in one call; `score`, `status`, `niche`, `state`, `due_at` are indexed.

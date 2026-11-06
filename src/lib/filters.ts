@@ -99,9 +99,12 @@ export function filtersToParams(f: LeadFilters, sort: LeadSort = "newest"): URLS
   return p;
 }
 
+/** The lead list lives at /leads (the dashboard is the home screen). */
+export const LEADS_PATH = "/leads";
+
 export function filtersHref(f: LeadFilters, sort: LeadSort = "newest"): string {
   const qs = filtersToParams(f, sort).toString();
-  return qs ? `/?${qs}` : "/";
+  return qs ? `${LEADS_PATH}?${qs}` : LEADS_PATH;
 }
 
 /** Number of active filters (not counting search text and sort). */

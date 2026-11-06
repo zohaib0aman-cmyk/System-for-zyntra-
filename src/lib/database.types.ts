@@ -20,7 +20,8 @@ export type ActivityType =
   | "followup_snoozed"
   | "tag_added"
   | "tag_removed"
-  | "priority_changed";
+  | "priority_changed"
+  | "whatsapp_opened";
 
 export type LeadRow = {
   id: string;
@@ -146,6 +147,39 @@ export type PushSubscriptionRow = {
   last_used_at: string | null;
 };
 
+export type MessageTemplateRow = {
+  id: string;
+  name: string;
+  body: string;
+  sort: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExportRow = {
+  id: string;
+  format: "xlsx" | "pdf" | "profile_pdf";
+  lead_count: number;
+  filters: Json;
+  columns: Json;
+  actor: string;
+  created_at: string;
+};
+
+export type BackupRow = {
+  id: string;
+  json_path: string;
+  xlsx_path: string | null;
+  size_bytes: number;
+  lead_count: number;
+  table_counts: Json;
+  kind: "manual" | "auto";
+  actor: string;
+  created_at: string;
+};
+
+export type DashboardStatsArgs = { p_from?: string | null; p_to?: string | null; p_bucket?: string };
+
 export type ListLeadsArgs = {
   p_query?: string;
   p_niches?: string[] | null;
@@ -221,6 +255,24 @@ export type Database = {
         Update: Partial<PushSubscriptionRow>;
         Relationships: [];
       };
+      message_templates: {
+        Row: MessageTemplateRow;
+        Insert: { name: string; body: string; sort?: number };
+        Update: { name?: string; body?: string; sort?: number };
+        Relationships: [];
+      };
+      exports: {
+        Row: ExportRow;
+        Insert: { format: ExportRow["format"]; lead_count?: number; filters?: Json; columns?: Json; actor?: string };
+        Update: Partial<ExportRow>;
+        Relationships: [];
+      };
+      backups: {
+        Row: BackupRow;
+        Insert: { json_path: string; xlsx_path?: string | null; size_bytes?: number; lead_count?: number; table_counts?: Json; kind?: BackupRow["kind"]; actor?: string };
+        Update: Partial<BackupRow>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -243,6 +295,8 @@ export type Database = {
       is_owner: { Args: Record<string, never>; Returns: boolean };
       list_leads: { Args: ListLeadsArgs; Returns: Json };
       lead_filter_options: { Args: Record<string, never>; Returns: Json };
+      dashboard_stats: { Args: DashboardStatsArgs; Returns: Json };
+      recent_activity: { Args: { p_limit?: number }; Returns: Json };
     };
     Enums: { lead_source: LeadSource; import_status: ImportStatus; lead_status: LeadStatus; activity_type: ActivityType };
     CompositeTypes: { [_ in never]: never };

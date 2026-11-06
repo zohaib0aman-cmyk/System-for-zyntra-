@@ -13,7 +13,8 @@ const icon = (d: string) => (
 
 function items(dueCount: number): Item[] {
   return [
-    { href: "/", label: "Leads", icon: icon("M4 6h16M4 12h16M4 18h10"), match: (p) => p === "/" || p.startsWith("/leads") },
+    { href: "/", label: "Home", icon: icon("M3 11l9-8 9 8M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"), match: (p) => p === "/" },
+    { href: "/leads", label: "Leads", icon: icon("M4 6h16M4 12h16M4 18h10"), match: (p) => p.startsWith("/leads") },
     { href: "/followups", label: "Follow-ups", icon: icon("M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"), badge: dueCount, match: (p) => p.startsWith("/followups") },
     { href: "/imports", label: "Import", icon: icon("M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"), match: (p) => p.startsWith("/imports") },
     { href: "/settings", label: "Settings", icon: icon("M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-2-1.2L14.5 3h-4l-.4 2.6a7.6 7.6 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.6 7.6 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z"), match: (p) => p.startsWith("/settings") },
@@ -37,7 +38,7 @@ export function BottomNav({ dueCount }: { dueCount: number }) {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
     >
-      <ul className="grid h-16 grid-cols-4">
+      <ul className="grid h-16 grid-cols-5">
         {items(dueCount).map((it) => {
           const active = it.match(pathname);
           return (

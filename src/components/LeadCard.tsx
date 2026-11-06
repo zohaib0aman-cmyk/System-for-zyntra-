@@ -7,6 +7,8 @@ import { relativeTime } from "@/lib/time";
 import { LeadAvatar } from "./LeadAvatar";
 import { StatusBadge } from "./StatusBadge";
 import { ScoreChip, TagChip } from "./pipeline/Chips";
+import { WhatsAppButton } from "./whatsapp/WhatsAppButton";
+import type { MessageTemplateRow } from "@/lib/database.types";
 
 type Props = {
   lead: LeadListItem;
@@ -14,10 +16,11 @@ type Props = {
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
   onQuickMenu?: (lead: LeadListItem) => void;
+  templates?: Pick<MessageTemplateRow, "id" | "name">[];
 };
 
 /** Lead card. Tap = open profile, long-press or ⋯ = quick menu, in select mode tap = select. */
-export function LeadCard({ lead, selecting, selected, onToggleSelect, onQuickMenu }: Props) {
+export function LeadCard({ lead, selecting, selected, onToggleSelect, onQuickMenu, templates = [] }: Props) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const longPressed = useRef(false);
   const place = [lead.city, lead.state].filter(Boolean).join(", ");
@@ -107,15 +110,26 @@ export function LeadCard({ lead, selecting, selected, onToggleSelect, onQuickMen
           {body}
         </Link>
       )}
-      {!selecting && onQuickMenu && (
-        <button
-          type="button"
-          aria-label={`Quick actions for ${lead.brand_name}`}
-          onClick={() => onQuickMenu(lead)}
-          className="absolute bottom-2 right-2 rounded-full px-2.5 py-1 text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-        >
-          ⋯
-        </button>
+      {!selecting && (
+        <div className="absolute bottom-2 right-2 flex items-center gap-1">
+          <WhatsAppButton
+            leadId={lead.id}
+            hasContact={!!(lead.whatsapp || lead.phone)}
+            status={lead.status}
+            templates={templates}
+            variant="icon"
+          />
+          {onQuickMenu && (
+            <button
+              type="button"
+              aria-label={`Quick actions for ${lead.brand_name}`}
+              onClick={() => onQuickMenu(lead)}
+              className="rounded-full px-2.5 py-1 text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            >
+              ⋯
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

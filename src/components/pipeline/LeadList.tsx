@@ -17,9 +17,14 @@ import { Spinner } from "@/components/Spinner";
 import { BottomSheet } from "./BottomSheet";
 import { TagChip } from "./Chips";
 
-type Props = { initial: LeadPage; query: string; allTags: { id: string; name: string; color: string }[] };
+type Props = {
+  initial: LeadPage;
+  query: string;
+  allTags: { id: string; name: string; color: string }[];
+  templates: { id: string; name: string }[];
+};
 
-export function LeadList({ initial, query, allTags }: Props) {
+export function LeadList({ initial, query, allTags, templates }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initial.rows);
   const [total, setTotal] = useState(initial.total);
@@ -154,6 +159,7 @@ export function LeadList({ initial, query, allTags }: Props) {
               selected={selected.has(lead.id)}
               onToggleSelect={toggle}
               onQuickMenu={setQuick}
+              templates={templates}
             />
           </li>
         ))}

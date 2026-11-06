@@ -15,6 +15,7 @@ const ICONS: Record<ActivityType, { icon: string; cls: string }> = {
   tag_added: { icon: "#", cls: "bg-pink-100 text-pink-700" },
   tag_removed: { icon: "#", cls: "bg-slate-100 text-slate-500" },
   priority_changed: { icon: "★", cls: "bg-amber-100 text-amber-700" },
+  whatsapp_opened: { icon: "✆", cls: "bg-green-100 text-green-700" },
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -75,6 +76,8 @@ function describe(a: ActivityRow): { title: string; body?: string } {
       return { title: `Tag removed: #${str(d.tag)}` };
     case "priority_changed":
       return { title: d.new ? "Marked as priority ★" : "Priority removed" };
+    case "whatsapp_opened":
+      return { title: `WhatsApp opened${d.template ? ` · ${str(d.template)}` : ""}`, body: d.to ? `To ${str(d.to)}` : undefined };
     default:
       return { title: a.type };
   }

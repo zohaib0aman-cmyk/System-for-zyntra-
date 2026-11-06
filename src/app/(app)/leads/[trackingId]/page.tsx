@@ -8,6 +8,7 @@ import {
   getTimeline,
   listLeadFollowups,
   listTags,
+  listTemplates,
   recalculateScore,
   scoreFor,
 } from "@/services";
@@ -19,6 +20,8 @@ import { FollowupPanel } from "@/components/pipeline/FollowupPanel";
 import { TagEditor } from "@/components/pipeline/TagEditor";
 import { NoteBox } from "@/components/pipeline/NoteBox";
 import { Timeline } from "@/components/pipeline/Timeline";
+import { WhatsAppButton } from "@/components/whatsapp/WhatsAppButton";
+import { DownloadProfileButton } from "@/components/export/DownloadProfileButton";
 
 export const maxDuration = 60;
 
@@ -46,18 +49,29 @@ export default async function LeadProfilePage({ params, searchParams }: Params) 
     if (r.ok) lead = r.data;
   }
 
-  const [timeline, followups, tags, allTags] = await Promise.all([
+  const [timeline, followups, tags, allTags, templates] = await Promise.all([
     getTimeline(db, lead.id, { limit: 100 }),
     listLeadFollowups(db, lead.id),
     getLeadTags(db, lead.id),
     listTags(db),
+    listTemplates(db),
   ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 lg:max-w-5xl">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="rounded-lg px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">← All leads</Link>
-        <Link href={`/leads/${lead.tracking_id}/edit`} className="btn-primary py-2">Edit</Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/leads" className="rounded-lg px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">← All leads</Link>
+        <div className="flex items-center gap-2">
+          <WhatsAppButton
+            leadId={lead.id}
+            hasContact={!!(lead.whatsapp || lead.phone)}
+            status={lead.status}
+            templates={templates.ok ? templates.data.map((t) => ({ id: t.id, name: t.name })) : []}
+            className="py-2"
+          />
+          <DownloadProfileButton leadId={lead.id} />
+          <Link href={`/leads/${lead.tracking_id}/edit`} className="btn-primary py-2">Edit</Link>
+        </div>
       </div>
 
       {(flags.created || flags.updated) && (

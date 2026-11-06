@@ -31,3 +31,21 @@ select cron.schedule(
 
 -- Check it:   select * from cron.job;
 -- Recent runs: select * from cron.job_run_details order by start_time desc limit 10;
+
+-- =====================================================================
+-- OPTIONAL: daily automatic backup at 02:30 (server time)
+-- =====================================================================
+select cron.unschedule('zyntra-backup')
+where exists (select 1 from cron.job where jobname = 'zyntra-backup');
+
+select cron.schedule(
+  'zyntra-backup',
+  '30 2 * * *',
+  $$
+    select net.http_post(
+      url     := '<YOUR-APP-URL>/api/cron/backup',
+      headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer <YOUR-CRON-SECRET>'),
+      timeout_milliseconds := 290000
+    );
+  $$
+);

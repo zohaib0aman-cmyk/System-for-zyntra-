@@ -1,54 +1,71 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { activeFilterCount, filtersToParams, parseFilters } from "@/lib/filters";
 import { createClient } from "@/lib/supabase/server";
-import { getFilterOptions, listLeads, listTags } from "@/services";
-import { SearchBar } from "@/components/SearchBar";
-import { FilterPanel, LeadsToolbar } from "@/components/pipeline/FilterPanel";
-import { LeadList } from "@/components/pipeline/LeadList";
+import { getDashboardStats, getRecentActivity, latestBackup, type DashboardRange } from "@/services";
+import { relativeTime } from "@/lib/time";
+import { StatCards } from "@/components/dashboard/StatCards";
+import { RangePicker } from "@/components/dashboard/RangePicker";
+import { FunnelChart, NicheChart, OverTimeChart, SourceChart, StateChart } from "@/components/dashboard/Charts";
+import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { TodayFollowups } from "@/components/pipeline/TodayFollowups";
 
-export default async function LeadsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { filters, sort } = parseFilters(await searchParams);
-  const query = filtersToParams(filters, sort).toString();
+const RANGES = new Set(["7d", "30d", "90d", "all", "custom"]);
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  const range = (RANGES.has(sp.range ?? "") ? sp.range : "30d") as DashboardRange;
   const db = await createClient();
-  const [page, options, tags] = await Promise.all([listLeads(db, filters, sort), getFilterOptions(db), listTags(db)]);
-  const showToday = !filters.q && activeFilterCount(filters) === 0;
-  const opts = options.ok ? options.data : { total: 0, niches: [], countries: [], states: [], cities: [], tags: [] };
+  const [statsRes, recentRes, backup] = await Promise.all([
+    getDashboardStats(db, range, { from: sp.from, to: sp.to }),
+    getRecentActivity(db, 10),
+    latestBackup(db),
+  ]);
+
+  if (!statsRes.ok) {
+    return <p className="card border-red-200 bg-red-50 p-4 text-sm text-red-700">Could not load the dashboard: {statsRes.message}</p>;
+  }
+  const stats = statsRes.data;
+  const backupAgeDays = backup ? (Date.now() - new Date(backup.created_at).getTime()) / 86_400_000 : Infinity;
+  const backupStale = backupAgeDays > 2;
 
   return (
-    <div className="lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-6">
-      <aside className="hidden lg:block">
-        <div className="card sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto p-4">
-          <FilterPanel options={opts} filters={filters} sort={sort} />
-        </div>
-      </aside>
-
-      <div className="min-w-0 space-y-4">
-        {showToday && (
-          <Suspense fallback={null}>
-            <TodayFollowups />
-          </Suspense>
-        )}
-
-        <div className="sticky top-14 z-10 -mx-4 space-y-2 bg-slate-50/95 px-4 pb-2 pt-1 backdrop-blur">
-          <SearchBar initialQuery={filters.q} />
-          <LeadsToolbar options={opts} filters={filters} sort={sort} />
-        </div>
-
-        {page.ok ? (
-          <LeadList key={query} initial={page.data} query={query} allTags={tags.ok ? tags.data : []} />
-        ) : (
-          <p role="alert" className="card border-red-200 bg-red-50 p-4 text-sm text-red-700">Could not load leads: {page.message}</p>
-        )}
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Dashboard</h1>
+        <Link
+          href="/settings/backups"
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ${
+            backupStale ? "bg-red-50 text-red-700 ring-red-200" : "bg-slate-50 text-slate-600 ring-slate-200"
+          }`}
+        >
+          {backup ? `Last backup: ${relativeTime(backup.created_at)}` : "No backup yet — tap to create"}
+        </Link>
       </div>
 
-      <Link
-        href="/leads/new"
-        className="fixed bottom-above-nav right-4 z-30 mb-4 inline-flex items-center gap-2 rounded-full bg-brand-600 px-5 py-4 font-semibold text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 active:scale-95 md:right-6"
-      >
-        <span className="text-xl leading-none">+</span> Add lead
-      </Link>
+      <RangePicker current={range} from={sp.from} to={sp.to} />
+      <StatCards stats={stats} />
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <FunnelChart data={stats.funnel} />
+        <SourceChart data={stats.by_source} />
+        <StateChart data={stats.by_state} />
+        <NicheChart data={stats.by_niche} />
+        <div className="lg:col-span-2">
+          <OverTimeChart data={stats.over_time} bucket={stats.range.bucket} />
+        </div>
+      </div>
+
+      <Suspense fallback={null}>
+        <TodayFollowups />
+      </Suspense>
+
+      <section className="card p-4">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-base font-bold">Recent activity</h2>
+          <Link href="/leads" className="text-sm font-semibold text-brand-700">All leads →</Link>
+        </div>
+        <RecentActivity items={recentRes.ok ? recentRes.data : []} />
+      </section>
     </div>
   );
 }
