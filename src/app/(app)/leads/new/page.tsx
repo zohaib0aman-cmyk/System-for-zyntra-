@@ -5,6 +5,8 @@ import { EMPTY_LEAD_FORM } from "@/lib/validation";
 import { listNiches } from "@/services";
 import { LeadForm } from "@/components/LeadForm";
 
+export const maxDuration = 60;
+
 export const metadata: Metadata = { title: "Add lead" };
 
 export default async function NewLeadPage() {

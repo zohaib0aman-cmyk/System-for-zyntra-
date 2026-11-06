@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLeadByTrackingId } from "@/services";
 import { LeadProfileCard } from "@/components/LeadProfileCard";
+import { LogoActions } from "@/components/LogoActions";
+
+export const maxDuration = 60;
 
 type Params = { params: Promise<{ trackingId: string }>; searchParams: Promise<{ created?: string; updated?: string }> };
 
@@ -36,6 +39,7 @@ export default async function LeadProfilePage({ params, searchParams }: Params) 
       )}
 
       <LeadProfileCard lead={lead} />
+      <LogoActions leadId={lead.id} status={lead.logo_status} hasWebsite={!!lead.website} />
     </div>
   );
 }

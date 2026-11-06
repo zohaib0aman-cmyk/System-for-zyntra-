@@ -6,6 +6,8 @@ import { leadToFormValues } from "@/lib/validation";
 import { getLeadByTrackingId, listNiches } from "@/services";
 import { LeadForm } from "@/components/LeadForm";
 
+export const maxDuration = 60;
+
 export async function generateMetadata({ params }: { params: Promise<{ trackingId: string }> }): Promise<Metadata> {
   const { trackingId } = await params;
   return { title: `Edit ${decodeURIComponent(trackingId)}` };

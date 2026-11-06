@@ -10,11 +10,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-black text-white">Z</span>
             <span>Zyntra <span className="font-medium text-slate-500">Lead ID</span></span>
           </Link>
-          <form action={logout}>
-            <button type="submit" className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
-              Log out
-            </button>
-          </form>
+          <nav className="flex items-center gap-1 text-sm font-medium">
+            <Link href="/imports" className="rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-100">Import PDF</Link>
+            <form action={logout}>
+              <button type="submit" className="rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100">Log out</button>
+            </form>
+          </nav>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>

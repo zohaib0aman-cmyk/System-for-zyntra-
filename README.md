@@ -1,4 +1,4 @@
-# Zyntra Lead ID System — Phase 1
+# Zyntra Lead ID System
 
 A mobile-first web app for tracking Zyntra business leads. Each lead gets a permanent tracking ID like **`ZYN-IN-GJ-000123`**.
 
@@ -136,8 +136,110 @@ npm start           # run the production build
 - `tracking_counters` and `app_owners` have RLS enabled with no policies. Only the security-definer functions use them.
 - `src/proxy.ts` refreshes the Supabase session and sends anyone not logged in to `/login`.
 
+---
+
+# Phase 2 — PDF import + automatic logos
+
+Upload a PDF of leads. Every business in it becomes a full lead profile with its own tracking ID, details cleaned up, and the brand logo fetched from its website.
+
+## How it works
+
+1. **Upload.** On **Import PDF**, choose or drag in a PDF (max 20 MB). The phone uploads it **directly to Supabase Storage** (private `imports` bucket), with a progress bar. This avoids Vercel's 4.5 MB request limit. An `imports` record is created with a status of `processing → review → done` (or `failed`).
+2. **Extract.** On the server, `unpdf` pulls out the text and keeps table rows together: cells are joined with ` | `, one row per line. Long PDFs are split into ~12,000-character chunks at row or blank-line boundaries, and the table header is repeated in each chunk. The chunks go to the AI three at a time. If an answer is cut off, that chunk is split in half and retried. If a chunk still fails, it is **reported in the summary**, never dropped.
+3. **Clean up.** Each lead is normalised:
+   - phones go to `+91…`
+   - Instagram is reduced to the bare handle
+   - websites become `https://…`
+   - state names are converted to 2-letter codes, or inferred from the city ("Bangalore" → KA)
+   - niches are matched to your list ("Clothing" → "Clothing Brand"); unknown niches are created when you save
+   - `source = pdf`, and `import_id` links the lead to the import
+4. **Review.** Each lead is shown as a card with a badge: **New**, **Duplicate · will merge** (showing the existing tracking ID), or **Missing info**. You can edit or remove any card, then tap **Add all**. Or tick **Add everything directly** when uploading to skip review.
+5. **Save.** New leads get tracking IDs. Duplicates (the Phase 1 rules: phone, WhatsApp, Instagram, website, or brand + city) are **merged**: empty fields on the existing lead are filled in, and values that differ are added to its notes, so nothing is overwritten or lost. Rows that can't be saved (e.g. no state) appear under **Skipped** with the reason. The summary shows X added / Y merged / Z skipped, with links.
+6. **Logos (background).** After saving (and when you add or edit a lead with a website), Next.js `after()` looks for a logo without slowing the import down. It tries the site's `apple-touch-icon`, then `og:image`, then `/apple-touch-icon.png`, then Google's 128px favicon, and stops at the first real image of at least 32 px. The image is **copied into the `logos` bucket** and saved as `logo_url`, so it keeps working if the website changes. `logo_status` is `pending`, `found` or `not_found`, and the initials avatar stays when nothing is found. Instagram is never scraped: use **Upload logo / photo** on the profile (images are resized to 512 px on the phone first). **Find logo again** re-runs the search.
+
+Scanned PDFs (photos with no text), password-protected PDFs and damaged files fail with a clear message.
+
+### Code added
+```
+supabase/migrations/20261107000000_phase2_pdf_import_logos.sql   imports table, leads.import_id/logo_status, storage buckets + policies
+src/lib/pdf/extractText.ts        PDF → text (keeps table rows), chunking
+src/lib/ai/extractLeads.ts        provider switch (AI_PROVIDER) + chunked extraction
+src/lib/ai/providers/             anthropic.ts (default), openai.ts, basic.ts (no-AI table parser)
+src/lib/ai/prompt.ts, types.ts    shared prompt + JSON schema
+src/lib/import/normalizeExtracted.ts   phones, handles, URLs, states, niche matching
+src/lib/net/safeFetch.ts          SSRF-safe fetch for logo lookups (blocks private IPs, size/time limits)
+src/services/imports.ts           createImport, processImport, classifyItem, commitImport, importLeadsFromPdf
+src/services/logos.ts             findLogo, findLogos, uploadLeadLogo
+src/app/(app)/imports/            Import PDF page, review / progress / summary page, server actions
+scripts/make-sample-pdf.mjs       builds samples/zyntra-sample-leads.pdf
+```
+
+**For later phases (API / MCP):** these are plain service functions that take a Supabase client:
+```ts
+const res = await importLeadsFromPdf(db, { file: pdfBytes, fileName: "leads.pdf" }, { autoSave: true });
+// res.data.summary → { added, merged, skipped, results, logoLeadIds }
+await findLogos(db, res.data.summary!.logoLeadIds);   // or findLogo(db, leadId)
+```
+
+To add another AI, implement `LeadExtractor` (`extract(chunk, ctx) → ExtractedLead[]`) in `src/lib/ai/providers/` and add a `case` to `getExtractor()`.
+
+## Phase 2 setup
+
+1. **Run the new migration.** In Supabase, open **SQL Editor → New query**, paste `supabase/migrations/20261107000000_phase2_pdf_import_logos.sql` and click **Run**. It creates the `imports` table, the new lead columns, and two storage buckets with owner-only policies:
+   - `imports`: private, PDFs only, 20 MB
+   - `logos`: public read, owner-only write, images only
+
+   You can check them under **Storage**.
+2. **Get an Anthropic API key:** <https://console.anthropic.com>, then **API Keys → Create key**, and add billing credit.
+3. **Add the environment variables** to `.env.local` locally, and in **Vercel → Project → Settings → Environment Variables**:
+
+   | Variable | Value | Notes |
+   |---|---|---|
+   | `ANTHROPIC_API_KEY` | `sk-ant-…` | **Server-only** — never prefix with `NEXT_PUBLIC_` |
+   | `AI_PROVIDER` | `anthropic` | optional; `openai` or `basic` to switch |
+   | `ANTHROPIC_MODEL` | `claude-opus-5-5` | optional (default) |
+   | `ANTHROPIC_EFFORT` | `medium` | optional; `low` = faster/cheaper |
+   | `OPENAI_API_KEY`, `OPENAI_MODEL` | | only when `AI_PROVIDER=openai` |
+
+   Then redeploy (Vercel → Deployments → ⋯ → Redeploy) so the new variables take effect.
+4. **Vercel time limit:** importing runs for up to 300 s (`maxDuration = 300`). This works on the Hobby plan when **Fluid Compute** is on, which is the default for new projects (Project → Settings → Functions). Very large PDFs (hundreds of pages) may need Pro.
+
+The Claude request uses structured JSON output and `fallbacks: "default"`. If Claude's safety filter declines a chunk, Anthropic retries it on its recommended fallback model automatically.
+
+## Test it with the sample PDF
+
+`samples/zyntra-sample-leads.pdf` has 10 **fake** clothing-brand leads over 2 pages (rebuild it with `node scripts/make-sample-pdf.mjs`). Run `supabase/seed.sql` first, then expect:
+
+| Row | What it tests | Expected |
+|---|---|---|
+| Kesariya Threads | same phone as seed lead, written `+91-98765-43210` | **Duplicate** → merged into `ZYN-IN-GJ-000001`; new email kept in notes |
+| Mumbai Streetwear Co. | Instagram given as `instagram.com/mumbaistreetwear` | **Duplicate** → merged into `ZYN-IN-MH-000001` |
+| Bombay Denim Lab | phone `12345 678` is invalid | **Missing info**; fix it with Edit, or it is skipped |
+| Mystery Fabrics | no state, no city | **Missing info** → skipped with "State is required" unless you pick a state |
+| Bengaluru Loom Co. | state blank, city "Bangalore" | state filled as **KA**, new niche "Ethnic Wear" |
+| others | "Rajasthan" → RJ, "West Bengal" → WB, `@handle` → handle, `www.site` → https | **New** |
+
+Result with no edits: **6 added, 2 merged, 2 skipped**. The skipped rows are shown with their reasons. Importing the same PDF again adds nothing new; every row merges.
+
+## Test on your phone
+
+1. Deploy (or redeploy) to Vercel with the Phase 2 env vars, and run the migration.
+2. Get the sample PDF onto your phone. Open the repo on GitHub, go to `samples/zyntra-sample-leads.pdf`, tap **Download** (it lands in Files / Downloads). Or email the file to yourself.
+3. On the phone, open your Vercel URL and sign in. Tip: Share → **Add to Home Screen** so it opens like an app.
+4. Tap **Import PDF → Tap to choose a PDF**, then pick the file from Files / Downloads (or Drive).
+5. Tap **Import leads**. Watch the upload bar, then "Finding leads with AI…". You can lock the phone or leave the page; it keeps running.
+6. On the review screen, use the **New / Duplicate / Missing info** tabs. Tap **Edit** on *Bombay Denim Lab* and set the phone to `98190 45678`, **Remove** one card, then tap **Add all**.
+7. Check the summary, then tap a tracking ID to open the profile. After about a minute, refresh: real websites get their logo, and fake sample domains keep initials. Try **Upload logo / photo** with a photo from your gallery.
+8. Upload the same PDF again with **Add everything directly** ticked. Everything should merge and no new IDs should be created.
+
+To test from your computer's dev server instead: `npm run dev -- -H 0.0.0.0`, then open `http://<computer-ip>:3000` on the phone (same Wi-Fi).
+
+## Local Supabase (optional, for development)
+
+`supabase/config.toml` is included. With Docker running, `npx supabase start` applies both migrations and `seed.sql` locally. Create a user in the local dashboard or with the admin API, insert it into `app_owners`, and point `.env.local` at the printed `API_URL` and publishable key. Set `AI_PROVIDER=basic` to test imports without an API key (clean tables only).
+
 ## Ready for later phases
-- **PDF import / AI (Claude, GPT):** call `addLead(db, data)` with `source: "pdf" | "claude" | "gpt"`. The duplicate check and ID generation come for free.
+- **AI connection (Claude, GPT):** call `addLead(db, data)` with `source: "claude" | "gpt"`, or `importLeadsFromPdf(db, …)` for PDFs. The duplicate check and ID generation come for free.
 - **REST API / MCP server:** wrap the functions in `src/services`. For a server-to-server key, create a client with the secret key (this bypasses RLS) inside the API route only.
 - **Filters / dashboard:** `niche`, `state`, `status` and `created_at` are already indexed.
 - **Logos:** `logo_url` is already shown everywhere; a later job just fills it in.

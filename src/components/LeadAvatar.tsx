@@ -28,7 +28,7 @@ export function LeadAvatar({
   if (logoUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={logoUrl} alt={`${name} logo`} className={`${dims} shrink-0 border border-slate-200 bg-white object-cover`} />
+      <img src={logoUrl} alt={`${name} logo`} className={`${dims} shrink-0 border border-slate-200 bg-white object-contain p-0.5`} />
     );
   }
   return (

@@ -3,6 +3,8 @@
 //   npx supabase gen types typescript --project-id <ref> > src/lib/database.types.ts
 
 export type LeadSource = "pdf" | "claude" | "gpt" | "manual";
+export type LogoStatus = "pending" | "found" | "not_found";
+export type ImportStatus = "processing" | "review" | "done" | "failed";
 
 export type LeadRow = {
   id: string;
@@ -23,6 +25,10 @@ export type LeadRow = {
   status: string;
   notes: string | null;
   website_host: string | null;
+  import_id: string | null;
+  logo_status: LogoStatus;
+  logo_source: string | null;
+  logo_checked_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -43,9 +49,38 @@ export type LeadInsert = {
   source?: LeadSource;
   status?: string;
   notes?: string | null;
+  import_id?: string | null;
+  logo_status?: LogoStatus;
+  logo_source?: string | null;
+  logo_checked_at?: string | null;
 };
 
 export type LeadUpdate = Partial<LeadInsert>;
+
+/** JSON stored in imports.items / imports.results — see src/services/imports.ts */
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export type ImportRow = {
+  id: string;
+  file_name: string;
+  file_path: string | null;
+  file_size: number | null;
+  page_count: number | null;
+  uploaded_at: string;
+  updated_at: string;
+  status: ImportStatus;
+  progress: string | null;
+  auto_save: boolean;
+  total_found: number;
+  added: number;
+  merged: number;
+  skipped: number;
+  error: string | null;
+  items: Json;
+  results: Json;
+};
+
+export type ImportInsert = Partial<Omit<ImportRow, "id" | "uploaded_at" | "updated_at">> & { file_name: string };
 
 export type NicheRow = { id: string; name: string; created_at: string };
 
@@ -56,6 +91,12 @@ export type Database = {
         Row: LeadRow;
         Insert: LeadInsert;
         Update: LeadUpdate;
+        Relationships: [];
+      };
+      imports: {
+        Row: ImportRow;
+        Insert: ImportInsert;
+        Update: Partial<ImportInsert>;
         Relationships: [];
       };
       niches: {
@@ -85,7 +126,7 @@ export type Database = {
       };
       is_owner: { Args: Record<string, never>; Returns: boolean };
     };
-    Enums: { lead_source: LeadSource };
+    Enums: { lead_source: LeadSource; import_status: ImportStatus };
     CompositeTypes: { [_ in never]: never };
   };
 };
