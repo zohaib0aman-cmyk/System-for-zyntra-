@@ -10,3 +10,5 @@ next-env.d.ts
 .DS_Store
 npm-debug.log*
 zyntra-all-phases.bundle
+zyntra-lead-id-source.zip
+*.bundle
