@@ -305,7 +305,7 @@ const timeline = (await getTimeline(db, leadId)).data;
 
    Redeploy after adding them.
 3. **Schedule the 15-minute job** (sends due-follow-up notifications and refreshes scores). Pick one:
-   - **Vercel Cron** — `vercel.json` already defines `*/15 * * * *` → `/api/cron/followups`. Vercel automatically sends `Authorization: Bearer $CRON_SECRET`, so just set `CRON_SECRET`. (Hobby plan runs cron up to twice a day; for true 15-minute checks use Pro, or:)
+   - **Vercel Cron** — `vercel.json` defines daily schedules so the project **builds on the Hobby plan** (Hobby rejects sub-daily crons at build time). Vercel automatically sends `Authorization: Bearer $CRON_SECRET`, so just set `CRON_SECRET`. A daily follow-up check is only a fallback — for timely (15-minute) reminders use Supabase pg_cron below (works on any plan). On **Pro**, change `/api/cron/followups` in `vercel.json` to `*/15 * * * *`.
    - **Supabase pg_cron** — edit `supabase/cron_followups.sql` (put in your app URL and `CRON_SECRET`) and run it in the SQL Editor. Works on any plan.
 4. **Time zone** (optional): set `NEXT_PUBLIC_APP_TIMEZONE` (default `Asia/Kolkata`) — used for "today" and follow-up dates.
 
