@@ -21,6 +21,14 @@ export default function SettingsPage() {
           <p className="font-semibold">Backups &amp; restore</p>
           <p className="mt-0.5 text-xs text-slate-500">Download or restore a full data backup</p>
         </Link>
+        <Link href="/settings/connections" className="card p-4 transition hover:border-brand-200 hover:shadow-md">
+          <p className="font-semibold">AI Connections</p>
+          <p className="mt-0.5 text-xs text-slate-500">API keys for Claude, ChatGPT &amp; others</p>
+        </Link>
+        <Link href="/settings/connect-ai" className="card p-4 transition hover:border-brand-200 hover:shadow-md">
+          <p className="font-semibold">How to connect AI</p>
+          <p className="mt-0.5 text-xs text-slate-500">Step-by-step setup for each AI</p>
+        </Link>
       </div>
 
       <NotificationSettings vapidPublicKey={vapid} />

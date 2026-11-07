@@ -178,6 +178,66 @@ export type BackupRow = {
   created_at: string;
 };
 
+export type ApiScope = "read" | "write";
+
+export type ApiKeyRow = {
+  id: string;
+  name: string;
+  key_hash: string;
+  key_prefix: string;
+  scopes: ApiScope[];
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+};
+
+export type ApiLogRow = {
+  id: number;
+  key_id: string | null;
+  surface: "rest" | "mcp";
+  route: string;
+  method: string;
+  status: number;
+  duration_ms: number | null;
+  created_at: string;
+};
+
+export type OAuthClientRow = {
+  id: string;
+  client_id: string;
+  client_secret: string | null;
+  client_name: string | null;
+  redirect_uris: string[];
+  grant_types: string[];
+  scopes: string[];
+  created_at: string;
+};
+
+export type OAuthAuthCodeRow = {
+  code: string;
+  client_id: string;
+  user_id: string;
+  redirect_uri: string;
+  scopes: string[];
+  code_challenge: string | null;
+  code_challenge_method: string | null;
+  expires_at: string;
+  created_at: string;
+};
+
+export type OAuthTokenRow = {
+  id: string;
+  access_hash: string;
+  refresh_hash: string | null;
+  client_id: string;
+  user_id: string | null;
+  scopes: string[];
+  expires_at: string;
+  revoked_at: string | null;
+  created_at: string;
+  last_used_at: string | null;
+};
+
 export type DashboardStatsArgs = { p_from?: string | null; p_to?: string | null; p_bucket?: string };
 
 export type ListLeadsArgs = {
@@ -273,6 +333,36 @@ export type Database = {
         Update: Partial<BackupRow>;
         Relationships: [];
       };
+      api_keys: {
+        Row: ApiKeyRow;
+        Insert: { name: string; key_hash: string; key_prefix: string; scopes?: ApiScope[] };
+        Update: Partial<ApiKeyRow>;
+        Relationships: [];
+      };
+      api_logs: {
+        Row: ApiLogRow;
+        Insert: { key_id?: string | null; surface?: "rest" | "mcp"; route: string; method: string; status: number; duration_ms?: number | null };
+        Update: Partial<ApiLogRow>;
+        Relationships: [];
+      };
+      oauth_clients: {
+        Row: OAuthClientRow;
+        Insert: { client_id: string; client_secret?: string | null; client_name?: string | null; redirect_uris?: string[]; grant_types?: string[]; scopes?: string[] };
+        Update: Partial<OAuthClientRow>;
+        Relationships: [];
+      };
+      oauth_auth_codes: {
+        Row: OAuthAuthCodeRow;
+        Insert: OAuthAuthCodeRow;
+        Update: Partial<OAuthAuthCodeRow>;
+        Relationships: [];
+      };
+      oauth_tokens: {
+        Row: OAuthTokenRow;
+        Insert: { access_hash: string; refresh_hash?: string | null; client_id: string; user_id?: string | null; scopes?: string[]; expires_at: string };
+        Update: Partial<OAuthTokenRow>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -297,6 +387,9 @@ export type Database = {
       lead_filter_options: { Args: Record<string, never>; Returns: Json };
       dashboard_stats: { Args: DashboardStatsArgs; Returns: Json };
       recent_activity: { Args: { p_limit?: number }; Returns: Json };
+      api_rate_hit: { Args: { p_key: string; p_limit: number; p_window_seconds?: number }; Returns: { allowed: boolean; remaining: number; reset_at: string }[] };
+      resync_tracking_counters: { Args: Record<string, never>; Returns: undefined };
+      oauth_cleanup: { Args: Record<string, never>; Returns: undefined };
     };
     Enums: { lead_source: LeadSource; import_status: ImportStatus; lead_status: LeadStatus; activity_type: ActivityType };
     CompositeTypes: { [_ in never]: never };

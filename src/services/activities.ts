@@ -11,7 +11,8 @@ export type Actor = "owner" | "claude" | "gpt" | "system" | (string & {});
 export type ActorOptions = { actor?: Actor };
 
 export function normalizeActor(actor: Actor | undefined): string {
-  const a = (actor ?? "owner").toString().trim().toLowerCase().replace(/[^a-z0-9 ._-]/g, "").slice(0, 40);
+  // Keep the given name (e.g. an API key's "Claude" / "ChatGPT") — just sanitise.
+  const a = (actor ?? "owner").toString().trim().replace(/[^A-Za-z0-9 ._()-]/g, "").slice(0, 40);
   return a || "owner";
 }
 

@@ -385,7 +385,71 @@ const backup = (await createBackup(db)).data;   // listBackups(db) · restoreBac
 4. **Export:** on **/leads**, apply a filter (e.g. niche + state), tap **Export**, choose columns, download **Excel** and **PDF**. Open a profile and tap **Download PDF**.
 5. **Backup:** **Settings → Backups → Backup now**, then download the JSON. To test restore safely, delete a lead, then upload that JSON and **Merge** — the lead comes back. (Try **Replace everything** only on test data.)
 
+---
+
+# Phase 5 — connect any AI (REST API + MCP server)
+
+Any AI — Claude, ChatGPT, or your own tools — can now work directly in Zyntra. Tell it "add these leads", "find ZYN-IN-GJ-000123", "show me all Hot clothing brands in Gujarat", or hand it a PDF, and it goes straight into your system. Everything an AI does appears in the lead timeline under that AI's name.
+
+## What's new
+
+1. **API keys.** Create a key per AI in **Settings → AI Connections**. The key is shown **once** (copy button); only its SHA-256 hash is stored. Each key has **read** and/or **write** scope, shows last-used, and can be **revoked** instantly. The key's **name is the timeline actor**, so every lead shows which AI added or changed it. (Keys are managed only in the app — never exposed to the API itself.)
+2. **REST API at `/api/v1`.** Bearer-auth (`Authorization: Bearer <key>`), scope-checked on every route, rate-limited (120/min per key), request-size-capped, and every call logged to `api_logs`. Every route calls only the shared service layer, with zod validation and clean JSON errors. Endpoints: `GET /leads/search`, `GET /leads` (filters + sort + pagination), `GET /leads/{tracking_id}`, `POST /leads` (duplicate check → merge), `POST /leads/bulk` (≤500), `POST /imports/pdf` (multipart or base64/URL; `review:false` adds directly), `PATCH /leads/{id}`, `POST /leads/{id}/{status,notes,followups,tags}`, `GET /followups/due`, `GET /stats`, `GET /leads/{id}/whatsapp-link`, `POST /exports`. **Not exposed:** deleting leads, restoring backups, managing keys (owner-only in the app). A machine-readable **OpenAPI spec** is public at `/api/v1/openapi.json` for ChatGPT Actions.
+3. **MCP server at `/api/mcp`.** A remote MCP server (Streamable HTTP, via `mcp-handler`) with 15 tools (`search_leads`, `get_lead`, `list_leads`, `add_lead`, `add_leads_bulk`, `import_pdf`, `update_lead`, `set_status`, `add_note`, `set_followup`, `list_due_followups`, `add_tags`, `get_stats`, `get_whatsapp_link`, `export_leads`). Read tools carry `readOnlyHint`; results are compact (key fields first, tracking ID always included). Two auth methods:
+   - **Bearer API key** — for Claude Code, Claude Desktop and other clients.
+   - **OAuth 2.1** (the MCP authorization spec: discovery metadata, Dynamic Client Registration, authorization code + **PKCE**, refresh) — so it can be added as a **custom connector in claude.ai** on web and phone. The OAuth login reuses your existing owner login and shows a consent screen.
+   All lead data (names, notes, PDF text) is treated as **data, never instructions** — tool descriptions say so and the server never executes content found inside leads.
+4. **Connection guide.** **Settings → How to connect AI** has copy-paste steps and the exact URLs for Claude (web/phone connector), Claude Code/Desktop (MCP config), ChatGPT (Custom GPT Action from the OpenAPI URL), and any REST client (curl examples).
+
+### Code added
+```
+supabase/migrations/20261110000000_phase5_api_mcp.sql   api_keys, api_logs, api_rate_hit(),
+    oauth_clients / oauth_auth_codes / oauth_tokens, restore-safe tracking-id helpers already in P4
+src/services/apiKeys.ts        createApiKey (shown once), verifyApiKey, checkRateLimit, logApiCall
+src/services/oauth.ts          DCR, PKCE code exchange, token verify + refresh
+src/lib/api/handler.ts         withApi() wrapper: auth, scope, rate limit, body cap, logging, errors
+src/lib/api/operations.ts      the ONE place REST + MCP call the service layer
+src/lib/api/{schemas,serialize,openapi,baseUrl}.ts
+src/lib/mcp/tools.ts           the 15 MCP tools (readOnlyHint, compact results)
+src/app/api/v1/**              all REST routes + /openapi.json
+src/app/api/mcp/route.ts       MCP (Streamable HTTP) with bearer + OAuth
+src/app/api/oauth/{register,token}, src/app/oauth/authorize   OAuth 2.1 endpoints + consent
+src/app/.well-known/**         OAuth discovery metadata
+src/app/(app)/settings/{connections,connect-ai}   AI Connections + guide
+tests/api.test.mjs, tests/mcp.test.mjs            end-to-end tests
+```
+
+## Phase 5 setup
+
+1. **Run the migration:** Supabase → SQL Editor → `supabase/migrations/20261110000000_phase5_api_mcp.sql`.
+2. **Set `NEXT_PUBLIC_APP_URL`** in Vercel to your real URL (e.g. `https://zyntra-leads.vercel.app`). It's used in the OpenAPI spec, the OAuth metadata and the connect guide. (`SUPABASE_SECRET_KEY` from Phase 4 is reused — the API/MCP run with the service-role client and enforce auth in code.) Optional: `API_RATE_LIMIT` (default 120/min).
+3. Redeploy. Then open **Settings → AI Connections**, create a key, and follow **How to connect AI**.
+
+### Your URLs (after deploy)
+- **API base:** `https://<your-app>/api/v1` · **OpenAPI:** `https://<your-app>/api/v1/openapi.json`
+- **MCP server:** `https://<your-app>/api/mcp`
+
+## Test end to end
+
+Automated (see `tests/README.md`): with Supabase + the app running,
+```bash
+node tests/api.test.mjs   # 18 checks: auth, scopes, add, duplicate-merge, bulk, actor-in-timeline, export, rate limit, revoke
+node tests/mcp.test.mjs   # 9 checks: tools, readOnlyHint, scopes, add via MCP, actor recorded
+```
+
+## Connect it to Claude on your phone
+
+1. Deploy and run the migration. Create a key in **Settings → AI Connections** (optional for the connector — claude.ai uses OAuth).
+2. In the **Claude app → Settings → Connectors → Add custom connector**, paste your **MCP URL** `https://<your-app>/api/mcp` and tap **Connect**.
+3. Claude opens Zyntra's login — sign in as the owner and tap **Allow**.
+4. In a chat, enable the **Zyntra** connector and try: *"Find ZYN-IN-GJ-000001"* or *"Add a lead: Surat Silk House, Gujarat, 98765 43210."* Your timeline will show the action under "Claude".
+
+## Connect it to ChatGPT
+
+1. Create a key with the **write** scope in AI Connections.
+2. ChatGPT → **Create a GPT → Configure → Create new Action → Import from URL**: `https://<your-app>/api/v1/openapi.json`.
+3. **Authentication → API Key → Bearer**, paste the key. Save, then ask *"Show me all Hot clothing brands in Gujarat."*
+
 ## Ready for later phases
-- **AI connection (Claude, GPT):** call `addLead` / `setStatus` / `setFollowup` / `addTag` / `importLeadsFromPdf` / `getWhatsAppLink` / `exportLeads` / `createBackup` with `{ actor: "claude" | "gpt" }`. The timeline records which AI did it.
-- **REST API / MCP server:** wrap the functions in `src/services` (all take a Supabase client first). For a server-to-server key, use the secret key inside the API route only.
-- **Dashboard:** `dashboard_stats`, `list_leads` and `lead_filter_options` return counts and facets in one call; `score`, `status`, `niche`, `state`, `due_at` are indexed.
+- **The service layer is the single source of truth.** REST routes and MCP tools both call `src/lib/api/operations.ts`, which calls `src/services/*`. New surfaces reuse the same functions; every write records an `actor`.
+- **Deleting / restoring / key management stay owner-only** in the app and are intentionally absent from the API and MCP.
