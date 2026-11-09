@@ -109,6 +109,18 @@ export function ConnectGuide({ baseUrl }: { baseUrl: string }) {
           <p className="font-medium">OpenAPI spec</p>
           <CopyField value={openapi} />
           <Note>Rate limit: 120 requests/minute per key. Every call is logged. Deleting leads and restoring backups are not available through the API.</Note>
+
+          <div className="border-t border-slate-100 pt-3">
+            <p className="font-medium">Demo / landing site endpoint</p>
+            <p className="mb-2 text-sm text-slate-600">
+              For a public demo page: returns <b>only</b> brand name, logo, city, state, niche and WhatsApp for one lead —
+              never notes, phone, email, owner, status or score. Use a <b>read-only</b> key. Rate limit 300/min.
+            </p>
+            <CopyField value={`${apiBase}/demo/leads/ZYN-IN-GJ-000123`} />
+            <div className="mt-2">
+              <CodeBlock code={`curl ${apiBase}/demo/leads/ZYN-IN-GJ-000123 \\\n  -H "Authorization: Bearer YOUR_READONLY_KEY"`} />
+            </div>
+          </div>
         </Card>
       )}
     </div>

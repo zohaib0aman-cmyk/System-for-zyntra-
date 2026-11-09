@@ -136,6 +136,34 @@ export function buildOpenApiSpec(baseUrl: string) {
           requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { file_base64: { type: "string" }, url: { type: "string" }, file_name: { type: "string" }, review: { type: "boolean", default: false } } } } } },
         }),
       },
+      "/demo/leads/{tracking_id}": {
+        get: op("Public display details for one lead (for a demo/landing site). Returns ONLY brand name, logo, city, state, niche and WhatsApp — never notes, phone, email, owner, status or score.", {
+          operationId: "getDemoLead",
+          parameters: [{ name: "tracking_id", in: "path", required: true, schema: { type: "string" }, description: "e.g. ZYN-IN-GJ-000123" }],
+          responses: {
+            "200": {
+              description: "Display details",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      tracking_id: { type: "string" },
+                      brand_name: { type: "string" },
+                      logo_url: { type: "string", nullable: true },
+                      city: { type: "string", nullable: true },
+                      state: { type: "string" },
+                      niche: { type: "string", nullable: true },
+                      whatsapp: { type: "string", nullable: true },
+                    },
+                  },
+                },
+              },
+            },
+            "404": { description: "Unknown tracking ID", content: { "application/json": { schema: { type: "object", properties: { error: { type: "string", example: "not_found" } } } } } },
+          },
+        }),
+      },
       "/followups/due": { get: op("List follow-ups due today or overdue", { operationId: "dueFollowups" }) },
       "/stats": {
         get: op("Dashboard numbers", {

@@ -52,7 +52,11 @@ export function fromService<T>(res: ServiceResult<T>, okStatus = 200): Response 
  * limit, request logging and uniform JSON errors. The handler only ever calls
  * the shared service layer.
  */
-export function withApi(requiredScope: ApiScope, handler: Handler) {
+export function withApi(
+  requiredScope: ApiScope,
+  handler: Handler,
+  options: { rateLimit?: number } = {},
+) {
   return async (req: NextRequest, context: { params: Promise<Record<string, string>> }): Promise<Response> => {
     const started = Date.now();
     const db = createAdminClient();
@@ -80,7 +84,7 @@ export function withApi(requiredScope: ApiScope, handler: Handler) {
         return finish(apiError(403, "forbidden", "This API key does not have the 'read' scope."));
       }
 
-      const rl = await checkRateLimit(db, key.id);
+      const rl = await checkRateLimit(db, key.id, options.rateLimit);
       if (!rl.allowed) {
         const res = apiError(429, "rate_limited", `Rate limit of ${rl.limit}/min exceeded. Try again shortly.`);
         res.headers.set("retry-after", String(Math.max(1, Math.ceil((new Date(rl.resetAt).getTime() - Date.now()) / 1000))));
