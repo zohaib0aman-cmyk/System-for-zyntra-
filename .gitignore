@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+build
+*.tsbuildinfo
+next-env.d.ts
+.env
+.env*.local
+.vercel
+.DS_Store
+npm-debug.log*
+zyntra-all-phases.bundle
+zyntra-lead-id-source.zip
+*.bundle
+zyntra-database-setup.sql

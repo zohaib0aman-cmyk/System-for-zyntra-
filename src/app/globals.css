@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-900: #1e1b4b;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html { -webkit-tap-highlight-color: transparent; }
+body { @apply bg-slate-50 text-slate-900 antialiased; }
+
+@utility input {
+  @apply block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-base text-slate-900
+    placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100
+    disabled:bg-slate-100;
+}
+@utility input-error { @apply border-red-400 focus:border-red-500 focus:ring-red-100; }
+@utility label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold
+    transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary { @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700; }
+@utility btn-secondary { @apply btn border border-slate-300 bg-white text-slate-800 hover:bg-slate-50; }
+/* Fixed bars sit above the phone tab bar; on md+ the tab bar is hidden. */
+@utility bottom-above-nav {
+  bottom: calc(4rem + env(safe-area-inset-bottom));
+  @media (width >= 48rem) {
+    bottom: 0;
+  }
+}
+
+@utility card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm; }
