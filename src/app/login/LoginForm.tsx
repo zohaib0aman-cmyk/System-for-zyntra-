@@ -11,12 +11,12 @@ export function LoginForm({ next }: { next?: string }) {
       <input type="hidden" name="next" value={next ?? "/"} />
       <div>
         <label htmlFor="email" className="label">Email</label>
-        <input id="email" name="email" type="email" autoComplete="email" inputMode="email" required
+        <input id="email" name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} required
           defaultValue={state.email} className="input" placeholder="you@zyntra.in" />
       </div>
       <div>
         <label htmlFor="password" className="label">Password</label>
-        <input id="password" name="password" type="password" autoComplete="current-password" required
+        <input id="password" name="password" type="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} required
           className="input" placeholder="••••••••" />
       </div>
       {state.error && (

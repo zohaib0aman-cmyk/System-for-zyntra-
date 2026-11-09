@@ -17,7 +17,19 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <LoginForm next={next} />
         </div>
         <p className="mt-6 text-center text-xs text-slate-400">Private system. No public sign-up.</p>
+        <p className="mt-1 text-center text-[11px] text-slate-300">Database: {supabaseHost()}</p>
       </div>
     </main>
   );
+}
+
+/** Which Supabase project this deploy talks to (the URL is already public in the browser bundle). */
+function supabaseHost(): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return "not configured";
+  try {
+    return new URL(url).host;
+  } catch {
+    return "invalid URL";
+  }
 }
