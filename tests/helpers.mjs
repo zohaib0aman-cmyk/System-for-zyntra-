@@ -2,7 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 
 export const BASE_URL = process.env.BASE_URL || "http://127.0.0.1:3123";
 const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
+// Never hardcode keys. Use your local Supabase secret key (run `npx supabase status`).
 const SECRET = process.env.SUPABASE_SECRET_KEY;
+if (!SECRET) {
+  console.error("Set SUPABASE_SECRET_KEY (the service-role/secret key from `npx supabase status`).");
+  process.exit(1);
+}
 
 export const db = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
 

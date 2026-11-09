@@ -17,7 +17,7 @@ node tests/mcp.test.mjs            # MCP: tools, readOnlyHint, scopes, actor in 
 # Config via env (defaults shown):
 #   BASE_URL=http://127.0.0.1:3123
 #   SUPABASE_URL=http://127.0.0.1:54321
-#   SUPABASE_SECRET_KEY=<service-role key>
+#   SUPABASE_SECRET_KEY=<service-role key>   (REQUIRED — from `npx supabase status`)
 ```
 
 Both scripts create their own API keys through the service layer, exercise the
