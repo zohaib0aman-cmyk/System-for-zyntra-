@@ -69,9 +69,11 @@ function authedHandler(req: Request) {
   return perRequest(req);
 }
 
+// No requiredScopes here on purpose: setting it made the 401 challenge say
+// scope="read", so Claude asked only for read access and could never write.
+// Scope is enforced per tool instead (write tools check for "write").
 const protectedHandler = withMcpAuth(authedHandler, verifyToken, {
   required: true,
-  requiredScopes: ["read"],
 });
 
 export { protectedHandler as GET, protectedHandler as POST, protectedHandler as DELETE };
