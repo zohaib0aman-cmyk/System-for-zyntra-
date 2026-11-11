@@ -5,14 +5,19 @@ import { dbError, type DB, type ServiceResult } from "./types";
 export type MessageTemplate = MessageTemplateRow;
 
 /** Variables a template body can use. */
-export const TEMPLATE_VARS = ["brand_name", "owner_name", "city", "state", "niche", "tracking_id"] as const;
+export const TEMPLATE_VARS = ["brand_name", "owner_name", "city", "state", "niche", "tracking_id", "demo_link"] as const;
 export type TemplateVar = (typeof TEMPLATE_VARS)[number];
 
 /** Fills {brand_name} etc. from a lead. Unknown or empty values become a friendly fallback. */
-export function renderTemplate(body: string, lead: Pick<LeadRow, TemplateVar>): string {
+export function renderTemplate(body: string, lead: Pick<LeadRow, Exclude<TemplateVar, "demo_link">>): string {
+  const demoBase = (process.env.DEMO_BASE_URL || "").replace(/\/+$/, "");
+  const vars: Record<TemplateVar, string | null | undefined> = {
+    ...lead,
+    demo_link: demoBase && lead.tracking_id ? `${demoBase}/?id=${lead.tracking_id}` : null,
+  };
   return body.replace(/\{(\w+)\}/g, (match, name: string) => {
     if (!(TEMPLATE_VARS as readonly string[]).includes(name)) return match;
-    const value = lead[name as TemplateVar];
+    const value = vars[name as TemplateVar];
     if (value) return String(value);
     return name === "owner_name" ? "there" : name === "brand_name" ? "your brand" : "";
   }).replace(/\s{2,}/g, " ").trim();

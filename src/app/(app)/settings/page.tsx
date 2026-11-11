@@ -13,6 +13,10 @@ export default function SettingsPage() {
       <h1 className="text-xl font-bold">Settings</h1>
 
       <div className="grid grid-cols-2 gap-2.5">
+        <Link href="/settings/automation" className="card col-span-2 border-brand-200 p-4 transition hover:shadow-md">
+          <p className="font-semibold">⚡ Automation (WhatsApp + AI)</p>
+          <p className="mt-0.5 text-xs text-slate-500">Auto demo link, AI replies, follow-up after demo view</p>
+        </Link>
         <Link href="/settings/templates" className="card p-4 transition hover:border-brand-200 hover:shadow-md">
           <p className="font-semibold">Message templates</p>
           <p className="mt-0.5 text-xs text-slate-500">WhatsApp message presets with variables</p>

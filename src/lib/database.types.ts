@@ -21,7 +21,12 @@ export type ActivityType =
   | "tag_added"
   | "tag_removed"
   | "priority_changed"
-  | "whatsapp_opened";
+  | "whatsapp_opened"
+  | "demo_sent"
+  | "demo_viewed"
+  | "whatsapp_in"
+  | "whatsapp_out"
+  | "handoff";
 
 export type LeadRow = {
   id: string;
@@ -52,6 +57,11 @@ export type LeadRow = {
   priority: boolean;
   last_contacted_at: string | null;
   next_followup_at: string | null;
+  auto_demo: boolean;
+  demo_sent_at: string | null;
+  demo_viewed_at: string | null;
+  wa_opt_out: boolean;
+  handoff_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -81,6 +91,11 @@ export type LeadInsert = {
   score_updated_at?: string | null;
   priority?: boolean;
   last_contacted_at?: string | null;
+  auto_demo?: boolean;
+  demo_sent_at?: string | null;
+  demo_viewed_at?: string | null;
+  wa_opt_out?: boolean;
+  handoff_at?: string | null;
 };
 
 export type LeadUpdate = Partial<LeadInsert>;
@@ -259,6 +274,47 @@ export type ListLeadsArgs = {
   p_offset?: number;
 };
 
+export type AutomationSettingsRow = {
+  id: boolean;
+  enabled: boolean;
+  wa_phone_number_id: string | null;
+  wa_access_token: string | null;
+  wa_app_secret: string | null;
+  wa_verify_token: string;
+  wa_template_name: string;
+  wa_followup_template: string;
+  wa_template_lang: string;
+  demo_base_url: string | null;
+  app_url: string | null;
+  cron_secret: string;
+  high_score: number;
+  followup_minutes: number;
+  business_name: string;
+  updated_at: string;
+};
+
+export type WaMessageRow = {
+  id: string;
+  lead_id: string | null;
+  wa_from: string | null;
+  direction: "in" | "out";
+  body: string;
+  wa_message_id: string | null;
+  by_ai: boolean;
+  status: string | null;
+  created_at: string;
+};
+
+export type AutomationJobRow = {
+  id: string;
+  lead_id: string;
+  kind: "demo_followup";
+  run_at: string;
+  done_at: string | null;
+  result: string | null;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -308,6 +364,24 @@ export type Database = {
           { foreignKeyName: "lead_tags_tag_id_fkey"; columns: ["tag_id"]; isOneToOne: false; referencedRelation: "tags"; referencedColumns: ["id"] },
           { foreignKeyName: "lead_tags_lead_id_fkey"; columns: ["lead_id"]; isOneToOne: false; referencedRelation: "leads"; referencedColumns: ["id"] },
         ];
+      };
+      automation_settings: {
+        Row: AutomationSettingsRow;
+        Insert: Partial<AutomationSettingsRow>;
+        Update: Partial<AutomationSettingsRow>;
+        Relationships: [];
+      };
+      wa_messages: {
+        Row: WaMessageRow;
+        Insert: Partial<WaMessageRow> & { direction: "in" | "out" };
+        Update: Partial<WaMessageRow>;
+        Relationships: [];
+      };
+      automation_jobs: {
+        Row: AutomationJobRow;
+        Insert: { lead_id: string; kind: "demo_followup"; run_at: string; done_at?: string | null; result?: string | null };
+        Update: Partial<AutomationJobRow>;
+        Relationships: [];
       };
       push_subscriptions: {
         Row: PushSubscriptionRow;

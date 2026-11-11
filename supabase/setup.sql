@@ -1173,3 +1173,5 @@ returns void language sql security definer set search_path = '' as $$
   delete from public.oauth_auth_codes where expires_at < now();
   delete from public.oauth_tokens where expires_at < now() - interval '30 days';
 $$;
+
+-- Phase 6: see migrations/20261111000000_phase6_automation.sql (also in setup_phase6.sql)

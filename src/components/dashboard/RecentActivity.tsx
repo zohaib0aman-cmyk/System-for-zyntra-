@@ -8,7 +8,8 @@ const VERB: Record<string, string> = {
   note_added: "note added", followup_set: "follow-up set", followup_done: "follow-up done",
   followup_snoozed: "follow-up snoozed", logo_found: "logo found", merged: "details merged",
   tag_added: "tag added", tag_removed: "tag removed", priority_changed: "priority changed",
-  whatsapp_opened: "WhatsApp opened",
+  whatsapp_opened: "WhatsApp opened", demo_sent: "demo sent", demo_viewed: "demo opened",
+  whatsapp_in: "WhatsApp received", whatsapp_out: "WhatsApp sent", handoff: "needs a call",
 };
 const ACTOR: Record<string, string> = { owner: "You", system: "System", claude: "Claude", gpt: "GPT" };
 

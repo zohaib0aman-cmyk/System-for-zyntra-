@@ -22,6 +22,8 @@ import { NoteBox } from "@/components/pipeline/NoteBox";
 import { Timeline } from "@/components/pipeline/Timeline";
 import { WhatsAppButton } from "@/components/whatsapp/WhatsAppButton";
 import { DownloadProfileButton } from "@/components/export/DownloadProfileButton";
+import { WhatsAppChat } from "@/components/automation/WhatsAppChat";
+import { demoLink, isHighValue } from "@/services/automation";
 
 export const maxDuration = 60;
 
@@ -49,12 +51,14 @@ export default async function LeadProfilePage({ params, searchParams }: Params) 
     if (r.ok) lead = r.data;
   }
 
-  const [timeline, followups, tags, allTags, templates] = await Promise.all([
+  const [timeline, followups, tags, allTags, templates, wa, auto] = await Promise.all([
     getTimeline(db, lead.id, { limit: 100 }),
     listLeadFollowups(db, lead.id),
     getLeadTags(db, lead.id),
     listTags(db),
     listTemplates(db),
+    db.from("wa_messages").select("id,direction,body,by_ai,status,created_at").eq("lead_id", lead.id).order("created_at", { ascending: true }).limit(200),
+    db.from("automation_settings").select("high_score,demo_base_url").eq("id", true).maybeSingle(),
   ]);
 
   return (
@@ -91,6 +95,16 @@ export default async function LeadProfilePage({ params, searchParams }: Params) 
           <FollowupPanel leadId={lead.id} followups={followups.ok ? followups.data : []} />
           <ScorePanel leadId={lead.id} priority={lead.priority} result={scoreFor(lead)} />
           <TagEditor leadId={lead.id} tags={tags.ok ? tags.data : []} allTags={allTags.ok ? allTags.data : []} />
+          <WhatsAppChat
+            leadId={lead.id}
+            messages={wa.data ?? []}
+            demoLink={demoLink(lead.tracking_id, auto.data)}
+            demoSentAt={lead.demo_sent_at ?? null}
+            demoViewedAt={lead.demo_viewed_at ?? null}
+            handoffAt={lead.handoff_at ?? null}
+            autoDemo={lead.auto_demo ?? false}
+            highValue={isHighValue(lead, auto.data ?? { high_score: 60 })}
+          />
 
           <section className="card space-y-4 p-4" aria-label="Timeline">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Timeline</h2>

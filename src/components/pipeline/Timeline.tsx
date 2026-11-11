@@ -16,6 +16,11 @@ const ICONS: Record<ActivityType, { icon: string; cls: string }> = {
   tag_removed: { icon: "#", cls: "bg-slate-100 text-slate-500" },
   priority_changed: { icon: "★", cls: "bg-amber-100 text-amber-700" },
   whatsapp_opened: { icon: "✆", cls: "bg-green-100 text-green-700" },
+  demo_sent: { icon: "➚", cls: "bg-green-100 text-green-700" },
+  demo_viewed: { icon: "👁", cls: "bg-sky-100 text-sky-700" },
+  whatsapp_in: { icon: "✉", cls: "bg-green-50 text-green-700" },
+  whatsapp_out: { icon: "✆", cls: "bg-green-100 text-green-700" },
+  handoff: { icon: "☎", cls: "bg-red-100 text-red-700" },
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -78,12 +83,22 @@ function describe(a: ActivityRow): { title: string; body?: string } {
       return { title: d.new ? "Marked as priority ★" : "Priority removed" };
     case "whatsapp_opened":
       return { title: `WhatsApp opened${d.template ? ` · ${str(d.template)}` : ""}`, body: d.to ? `To ${str(d.to)}` : undefined };
+    case "demo_sent":
+      return { title: "Demo link sent on WhatsApp", body: d.link ? str(d.link) : undefined };
+    case "demo_viewed":
+      return { title: "Lead opened the demo" };
+    case "whatsapp_in":
+      return { title: "WhatsApp message received", body: d.text ? str(d.text) : undefined };
+    case "whatsapp_out":
+      return { title: d.ai ? "AI replied on WhatsApp" : "WhatsApp message sent", body: d.text ? str(d.text) : undefined };
+    case "handoff":
+      return { title: "Needs you: call this lead", body: d.reason ? str(d.reason) : undefined };
     default:
       return { title: a.type };
   }
 }
 
-const ACTOR_LABEL: Record<string, string> = { owner: "You", system: "System", claude: "Claude", gpt: "GPT" };
+const ACTOR_LABEL: Record<string, string> = { owner: "You", system: "System", claude: "Claude", gpt: "GPT", ai: "AI" };
 
 export function Timeline({ items }: { items: ActivityRow[] }) {
   if (items.length === 0) return <p className="text-sm text-slate-400">No activity yet.</p>;
